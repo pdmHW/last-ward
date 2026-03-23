@@ -701,52 +701,74 @@ function setupPC(){
 }
 function setupMobile(){
   if(setupMobile.done) return; setupMobile.done=true;
-  document.getElementById('mobUI').style.display='block';
-  document.getElementById('actBtn').style.display='flex';
   const jz=document.getElementById('jZone');
   const kn=document.getElementById('jKnob');
   const lz=document.getElementById('lZone');
-  const MAXR=35;
-  let jID=null,jSX=0,jSY=0, lID=null,lLX=0;
+  const MAXR=38;
+  let jID=null,jSX=0,jSY=0,lID=null,lLX=0;
 
-  jz.addEventListener('touchstart',e=>{
-    const t=e.changedTouches[0]; jID=t.identifier;
+  function onJoyStart(e){
+    e.preventDefault();
+    const t=e.changedTouches[0];
+    jID=t.identifier;
     const r=jz.getBoundingClientRect();
     jSX=r.left+r.width/2; jSY=r.top+r.height/2;
-  },{passive:true});
-  jz.addEventListener('touchmove',e=>{
+    joy.ax=0; joy.ay=0;
+  }
+  function onJoyMove(e){
+    e.preventDefault();
     for(const t of e.changedTouches){
       if(t.identifier!==jID) continue;
       let dx=t.clientX-jSX, dy=t.clientY-jSY;
       const d=Math.sqrt(dx*dx+dy*dy);
       if(d>MAXR){dx*=MAXR/d;dy*=MAXR/d;}
       joy.ax=dx/MAXR; joy.ay=dy/MAXR;
-      kn.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+      kn.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';
     }
-  },{passive:true});
-  jz.addEventListener('touchend',e=>{
-    for(const t of e.changedTouches) if(t.identifier===jID){joy.ax=0;joy.ay=0;kn.style.transform='translate(-50%,-50%)';}
-  },{passive:true});
-
-  lz.addEventListener('touchstart',e=>{
-    const t=e.changedTouches[0]; lID=t.identifier; lLX=t.clientX;
-  },{passive:true});
-  lz.addEventListener('touchmove',e=>{
+  }
+  function onJoyEnd(e){
+    e.preventDefault();
+    for(const t of e.changedTouches){
+      if(t.identifier===jID){joy.ax=0;joy.ay=0;kn.style.transform='translate(-50%,-50%)';}
+    }
+  }
+  function onLookStart(e){
+    e.preventDefault();
+    const t=e.changedTouches[0];
+    lID=t.identifier; lLX=t.clientX;
+  }
+  function onLookMove(e){
+    e.preventDefault();
     for(const t of e.changedTouches){
       if(t.identifier!==lID) continue;
-      lookDX+=(t.clientX-lLX)*2.2;
+      lookDX+=(t.clientX-lLX)*2.5;
       lLX=t.clientX;
     }
-  },{passive:true});
-  lz.addEventListener('touchend',e=>{
+  }
+  function onLookEnd(e){
+    e.preventDefault();
     for(const t of e.changedTouches) if(t.identifier===lID) lID=null;
-  },{passive:true});
+  }
+
+  jz.addEventListener('touchstart',onJoyStart,{passive:false});
+  jz.addEventListener('touchmove', onJoyMove, {passive:false});
+  jz.addEventListener('touchend',  onJoyEnd,  {passive:false});
+  jz.addEventListener('touchcancel',onJoyEnd, {passive:false});
+  lz.addEventListener('touchstart',onLookStart,{passive:false});
+  lz.addEventListener('touchmove', onLookMove, {passive:false});
+  lz.addEventListener('touchend',  onLookEnd,  {passive:false});
 }
 
 // ═══════════════════════════════════════════════
 //  START
 // ═══════════════════════════════════════════════
 function startGame(){
+  // fullscreen
+  try{
+    const el=document.documentElement;
+    if(el.requestFullscreen) el.requestFullscreen();
+    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }catch(e){}
   document.getElementById('titleScreen').classList.add('off');
   notes=STORY.map((s,i)=>({x:s.x,y:s.y,si:i,collected:false}));
   P.x=2.5; P.y=2.5; P.a=0;
