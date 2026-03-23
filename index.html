@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+<meta name="theme-color" content="#000000">
 <title>THE LAST WARD</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; touch-action:none; }
@@ -93,7 +97,7 @@ canvas { display:block; }
 }
 
 /* MOBILE */
-#mobUI { display:none; position:fixed; bottom:0; left:0; right:0; height:44vw; max-height:200px; z-index:20; pointer-events:none; }
+#mobUI { display:block; position:fixed; bottom:0; left:0; right:0; height:44vw; max-height:200px; z-index:20; pointer-events:none; }
 #jZone { position:absolute; left:4vw; bottom:3vw; width:110px; height:110px;
   border-radius:50%; pointer-events:all;
   background:rgba(212,168,67,0.07); border:1px solid rgba(212,168,67,0.22); }
@@ -105,7 +109,7 @@ canvas { display:block; }
   position:fixed; right:5vw; bottom:20vw; width:62px; height:62px; border-radius:50%;
   background:rgba(212,168,67,0.1); border:1.5px solid rgba(212,168,67,0.4);
   color:#d4a843; font-size:0.52rem; letter-spacing:0.1em; cursor:pointer;
-  z-index:21; display:none; align-items:center; justify-content:center;
+  z-index:21; display:flex; align-items:center; justify-content:center;
   text-align:center; pointer-events:all;
 }
 
@@ -696,6 +700,7 @@ function setupPC(){
   document.addEventListener('mousemove',e=>{ if(document.pointerLockElement) mdx+=e.movementX; });
 }
 function setupMobile(){
+  if(setupMobile.done) return; setupMobile.done=true;
   document.getElementById('mobUI').style.display='block';
   document.getElementById('actBtn').style.display='flex';
   const jz=document.getElementById('jZone');
@@ -752,6 +757,12 @@ function startGame(){
   gameOn=true;
   last=performance.now();
   requestAnimationFrame(loop);
+  // Request fullscreen on mobile
+  if(isMob){
+    const el=document.documentElement;
+    if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }
 }
 </script>
 </body>
