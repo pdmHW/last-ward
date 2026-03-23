@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>THE LAST WARD</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; touch-action:none; }
+body { background:#000; overflow:hidden; font-family:'Courier New',monospace; user-select:none; }
+canvas { display:block; }
+
+.screen {
+  position:fixed; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:#080604; z-index:100; transition:opacity 0.6s;
+}
+.screen.off { opacity:0; pointer-events:none; }
+
+#titleScreen h1 {
+  font-size:clamp(2rem,10vw,4.5rem); letter-spacing:0.25em;
+  color:#d4a843; text-shadow:0 0 30px #d4a84388;
+  animation:flicker 5s infinite; text-align:center; padding:0 1rem;
+}
+.sub {
+  font-size:clamp(0.6rem,2.5vw,0.85rem); letter-spacing:0.35em; color:#4a4030;
+  margin:1rem 0 2.5rem; text-align:center; padding:0 1.5rem; line-height:2.2;
+}
+.btn {
+  background:transparent; border:1px solid #d4a84355; color:#d4a843;
+  padding:0.9rem 2.5rem; font-family:'Courier New',monospace;
+  font-size:clamp(0.75rem,2.5vw,1rem); letter-spacing:0.3em; cursor:pointer;
+  transition:all 0.3s; text-transform:uppercase;
+}
+.btn:hover,.btn:active { background:#d4a84311; border-color:#d4a843; }
+
+#noteScreen { background:rgba(4,3,2,0.97); }
+.note-box {
+  max-width:480px; width:90%; background:#0e0b08;
+  border:1px solid #d4a84322; padding:1.8rem;
+}
+.note-label { font-size:0.6rem; letter-spacing:0.3em; color:#d4a84366; margin-bottom:1rem; }
+.note-body { font-size:clamp(0.78rem,2.5vw,0.9rem); line-height:1.9; color:#a88858; white-space:pre-wrap; }
+.note-close { margin-top:1.5rem; }
+
+#deathScreen h2 {
+  font-size:clamp(2rem,9vw,4rem); color:#7a1212;
+  letter-spacing:0.3em; text-shadow:0 0 40px #7a121288;
+  animation:flicker 2s infinite; text-align:center;
+}
+#deathScreen p { color:#3a2a2a; margin:1rem 0 2rem; letter-spacing:0.15em; font-size:0.8rem; }
+
+#winScreen h2 {
+  font-size:clamp(2rem,9vw,4rem); color:#d4a843;
+  letter-spacing:0.3em; text-shadow:0 0 40px #d4a84388; text-align:center;
+}
+#winScreen p { color:#554433; font-size:0.8rem; letter-spacing:0.1em; margin-top:1rem; text-align:center; }
+
+#hud {
+  position:fixed; top:0; left:0; right:0; padding:0.8rem 1rem;
+  display:flex; justify-content:space-between; align-items:center;
+  z-index:10; pointer-events:none;
+}
+#sanWrap { display:flex; flex-direction:column; gap:3px; }
+#sanLbl { font-size:0.55rem; letter-spacing:0.25em; color:#3a3020; }
+#sanTrack { width:90px; height:3px; background:#0d0b09; border:1px solid #2a2218; }
+#sanFill { height:100%; background:#d4a843; transition:width 0.4s,background 0.5s; }
+#nLbl { font-size:0.62rem; color:#3a3020; letter-spacing:0.15em; }
+
+#prompt {
+  position:fixed; bottom:30%; left:50%; transform:translateX(-50%);
+  font-size:0.68rem; letter-spacing:0.2em; color:#d4a843;
+  background:#000000aa; padding:0.35rem 0.9rem; border:1px solid #d4a84333;
+  opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:10; white-space:nowrap;
+}
+#prompt.show { opacity:1; }
+
+#vig {
+  position:fixed; inset:0; pointer-events:none; z-index:5;
+  background:radial-gradient(ellipse at center, transparent 30%, #000 100%); opacity:0.6;
+}
+#fear {
+  position:fixed; inset:0; pointer-events:none; z-index:6;
+  background:radial-gradient(ellipse at center, transparent 10%, #500 100%);
+  opacity:0; transition:opacity 0.7s;
+}
+#flash { position:fixed; inset:0; pointer-events:none; z-index:200; opacity:0; }
+
+/* minimap */
+#mm {
+  position:fixed; top:0.8rem; left:50%; transform:translateX(-50%);
+  width:72px; height:72px; border:1px solid #1a1510; opacity:0.55; z-index:10;
+  image-rendering:pixelated;
+}
+
+/* MOBILE */
+#mobUI { display:none; position:fixed; bottom:0; left:0; right:0; height:44vw; max-height:200px; z-index:20; pointer-events:none; }
+#jZone { position:absolute; left:4vw; bottom:3vw; width:110px; height:110px;
+  border-radius:50%; pointer-events:all;
+  background:rgba(212,168,67,0.07); border:1px solid rgba(212,168,67,0.22); }
+#jKnob { position:absolute; width:40px; height:40px; border-radius:50%;
+  background:rgba(212,168,67,0.22); border:1px solid rgba(212,168,67,0.5);
+  top:50%; left:50%; transform:translate(-50%,-50%); }
+#lZone { position:absolute; right:0; top:0; bottom:0; width:55%; pointer-events:all; }
+#actBtn {
+  position:fixed; right:5vw; bottom:20vw; width:62px; height:62px; border-radius:50%;
+  background:rgba(212,168,67,0.1); border:1.5px solid rgba(212,168,67,0.4);
+  color:#d4a843; font-size:0.52rem; letter-spacing:0.1em; cursor:pointer;
+  z-index:21; display:none; align-items:center; justify-content:center;
+  text-align:center; pointer-events:all;
+}
+
+@keyframes flicker {
+  0%,100%{opacity:1}90%{opacity:1}91%{opacity:.2}92%{opacity:1}96%{opacity:.6}97%{opacity:1}
+}
+</style>
+</head>
+<body>
+
+<div id="titleScreen" class="screen">
+  <h1>THE LAST WARD</h1>
+  <div class="sub">
+    WARD 7 · ABANDONED PSYCHIATRIC HOSPITAL<br>
+    <span style="color:#2a2018;font-size:.85em">
+      PC: WASD · Mouse look · E interact<br>
+      Mobile: Left joystick · Drag right side · Button interact
+    </span>
+  </div>
+  <button class="btn" onclick="startGame()">ENTER</button>
+</div>
+
+<div id="noteScreen" class="screen off">
+  <div class="note-box">
+    <div class="note-label">— FOUND DOCUMENT —</div>
+    <div class="note-body" id="noteBody"></div>
+    <button class="btn note-close" onclick="closeNote()">[ CONTINUE ]</button>
+  </div>
+</div>
+
+<div id="deathScreen" class="screen off">
+  <h2>CONSUMED</h2>
+  <p>the darkness swallowed you whole</p>
+  <button class="btn" onclick="location.reload()">[ TRY AGAIN ]</button>
+</div>
+
+<div id="winScreen" class="screen off">
+  <h2>ESCAPED</h2>
+  <p>Ward 7 will remember you.</p>
+  <p style="color:#2a1a0a;margin-top:.5rem;font-size:.7rem">but can you forget what you saw?</p>
+</div>
+
+<div id="hud">
+  <div id="sanWrap">
+    <div id="sanLbl">SANITY</div>
+    <div id="sanTrack"><div id="sanFill" style="width:100%"></div></div>
+  </div>
+  <canvas id="mm" width="72" height="72"></canvas>
+  <div id="nLbl">NOTES <span id="nC">0</span>/5</div>
+</div>
+<div id="prompt">[ E ] READ</div>
+<div id="vig"></div>
+<div id="fear"></div>
+<div id="flash"></div>
+
+<div id="mobUI">
+  <div id="jZone"><div id="jKnob"></div></div>
+  <div id="lZone"></div>
+</div>
+<div id="actBtn" onclick="tryInteract()">READ</div>
+
+<canvas id="c"></canvas>
+
+<script>
+// ═══════════════════════════════════════════════
+//  MAP   0=open 1=wall 2=door 3=exit
+// ═══════════════════════════════════════════════
+const MW=16, MH=22;
+const RAW=[
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,1,1,1,2,1,1,1,0,0,0,0,0,1,
+  1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,
+  1,0,0,2,0,0,0,0,0,1,0,0,0,0,0,1,
+  1,0,0,1,0,0,0,0,0,1,0,0,1,1,1,1,
+  1,0,0,1,1,1,1,1,1,1,0,0,1,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,2,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,
+  1,0,0,1,1,1,2,1,1,0,0,0,0,0,0,1,
+  1,0,0,1,0,0,0,1,1,0,0,0,0,0,0,1,
+  1,0,0,1,0,0,0,2,0,0,0,0,0,0,0,1,
+  1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,1,1,2,1,1,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,3,0,1,
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+];
+function mcell(x,y){
+  const tx=Math.floor(x),ty=Math.floor(y);
+  if(tx<0||ty<0||tx>=MW||ty>=MH) return 1;
+  return RAW[ty*MW+tx];
+}
+function solid(x,y){ return mcell(x,y)>=1; }
+
+// ═══════════════════════════════════════════════
+//  STORY NOTES
+// ═══════════════════════════════════════════════
+const STORY=[
+  {x:5.5,y:1.5,text:`DR. VOSS — INTAKE REPORT #001
+
+Patient 47 admitted on Tuesday.
+Claims to hear voices from inside the walls.
+Says they whisper his name.
+
+We have sedated him twice.
+He keeps escaping his room.
+
+The lights in Ward 7 have been flickering
+every night for a week.
+Maintenance finds nothing wrong.
+
+Something is wrong here.
+
+— Dr. Elias Voss`},
+  {x:6,y:5,text:`NURSE STATION LOG — DAY 12
+
+Found Patient 47 in the east corridor again.
+Facing the wall. Whispering numbers.
+
+4. 7. 4. 7. 4. 7.
+
+He turned slowly and said:
+"It is already inside the building."
+
+I asked what was inside.
+He smiled and said nothing.
+
+I am requesting a transfer out of Ward 7.`},
+  {x:13,y:8.5,text:`INTERNAL MEMO — RESTRICTED ACCESS
+
+INCIDENT — WARD 7 — 02:14 AM
+
+Six patients found unconscious in hallway.
+No trauma. No cause identified.
+
+DR. VOSS IS MISSING.
+His office shows signs of extreme distress.
+The mirror was shattered from the inside.
+
+DO NOT contact press.
+Investigation in progress.
+
+— Hospital Administration`},
+  {x:5.5,y:12.5,text:`— scrawled on torn paper, barely legible —
+
+it comes when you stop moving
+
+keep moving
+
+it cannot find you if you are calm
+
+i locked myself in room 12
+it is right outside the door
+it knows my heartbeat
+
+if you find this note —
+LEAVE NOW
+do not go to the east wing
+
+— [name torn away]`},
+  {x:8,y:19.5,text:`DR. VOSS — FINAL ENTRY
+
+I understand now.
+
+Patient 47 was not psychotic.
+He was hearing IT.
+The entity between the walls.
+
+It has always been here.
+We built this hospital on top of something.
+
+It feeds on fear. On sanity.
+The more afraid you are the stronger it gets.
+
+There IS an exit. The south door.
+Bottom of the ward.
+Walk toward it. Stay calm.
+
+Don't run. Don't panic.
+Do not let the fear consume you.
+
+I am so sorry.
+
+— Elias Voss, M.D.`},
+];
+
+// ═══════════════════════════════════════════════
+//  CANVAS + STATE
+// ═══════════════════════════════════════════════
+const C=document.getElementById('c');
+const ctx=C.getContext('2d');
+let W,H;
+function resize(){ W=C.width=window.innerWidth; H=C.height=window.innerHeight; }
+resize();
+window.addEventListener('resize',resize);
+
+const isMob=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+// Player
+const P={ x:2.5, y:2.5, a:0 };
+// Entity
+const ENT={ x:8, y:19, active:false, timer:22 };
+
+let sanity=100, noteCount=0, alive=true, gameOn=false;
+let nearIdx=-1;
+
+// Sprites
+let notes=[];
+
+// Input
+const keys={};
+let mdx=0; // mouse delta x
+const joy={ ax:0, ay:0 };
+let lookDX=0;
+
+// ═══════════════════════════════════════════════
+//  RAYCASTER
+// ═══════════════════════════════════════════════
+const FOV=Math.PI/2.6;
+
+function raycast(angle){
+  const cos=Math.cos(angle), sin=Math.sin(angle);
+  for(let d=0.05;d<25;d+=0.05){
+    const rx=P.x+cos*d, ry=P.y+sin*d;
+    const c=mcell(rx,ry);
+    if(c>=1) return {d, type:c};
+  }
+  return {d:25,type:0};
+}
+
+// Wall color by type and distance
+function wallColor(type, dist){
+  const b=Math.max(0,1-dist/9);
+  if(type===3){ // exit — greenish
+    const v=Math.floor(30+b*50);
+    return `rgb(${Math.floor(v*0.4)},${v},${Math.floor(v*0.5)})`;
+  }
+  if(type===2){ // door — brownish
+    const v=Math.floor(20+b*55);
+    return `rgb(${v},${Math.floor(v*0.6)},${Math.floor(v*0.3)})`;
+  }
+  // normal wall
+  const r=Math.floor(12+b*38);
+  const g=Math.floor(9+b*28);
+  const bv=Math.floor(6+b*16);
+  return `rgb(${r},${g},${bv})`;
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  const RAYS=isMob?Math.ceil(W/4):Math.ceil(W/2.5);
+  const SW=Math.ceil(W/RAYS)+1;
+  const halfH=H/2;
+
+  // Ceiling
+  ctx.fillStyle='#0c0a08';
+  ctx.fillRect(0,0,W,halfH);
+  // Floor
+  const fg=ctx.createLinearGradient(0,halfH,0,H);
+  fg.addColorStop(0,'#181410');
+  fg.addColorStop(1,'#0c0a08');
+  ctx.fillStyle=fg;
+  ctx.fillRect(0,halfH,W,halfH);
+
+  const zbuf=new Float32Array(RAYS);
+
+  for(let i=0;i<RAYS;i++){
+    const ra=P.a-FOV/2+(i/RAYS)*FOV;
+    const {d,type}=raycast(ra);
+    const corr=d*Math.cos(ra-P.a);
+    zbuf[i]=corr;
+    if(corr>=25) continue;
+    const sh=Math.min(H*1.1,H/corr);
+    const sy=halfH-sh/2;
+    ctx.fillStyle=wallColor(type,corr);
+    ctx.fillRect((i/RAYS)*W,sy,SW,sh);
+  }
+
+  // ── SPRITES ──
+  // Sort far→near
+  const vis=[...notes.filter(n=>!n.collected)];
+  if(ENT.active) vis.push({x:ENT.x,y:ENT.y,_ent:true});
+  vis.sort((a,b)=>dist2(b)-dist2(a));
+
+  function dist2(s){ return (s.x-P.x)**2+(s.y-P.y)**2; }
+
+  for(const s of vis){
+    const dx=s.x-P.x, dy=s.y-P.y;
+    const dd=Math.sqrt(dx*dx+dy*dy);
+    if(dd<0.4) continue;
+    let ang=Math.atan2(dy,dx)-P.a;
+    while(ang>Math.PI) ang-=Math.PI*2;
+    while(ang<-Math.PI) ang+=Math.PI*2;
+    if(Math.abs(ang)>FOV*0.65) continue;
+    const sx=((ang/FOV)+0.5)*W;
+    const sz=Math.min(H,H/dd*0.9);
+    const sy2=halfH-sz/2;
+    const ri=Math.floor(((ang/FOV)+0.5)*RAYS);
+    // Occlusion check
+    let ok=false;
+    for(let r=Math.max(0,ri-3);r<=Math.min(RAYS-1,ri+3);r++){
+      if(zbuf[r]>=dd){ok=true;break;}
+    }
+    if(!ok) continue;
+    const shade=Math.min(1,Math.max(0.08,1-dd/8));
+    if(s._ent){
+      drawEntity(sx,sy2,sz,shade);
+    } else {
+      drawNote(sx,sy2,sz,shade);
+    }
+  }
+
+  // Subtle scanlines on mobile for perf (makes lower res look stylish)
+  if(isMob){
+    ctx.fillStyle='rgba(0,0,0,0.08)';
+    for(let y=0;y<H;y+=4) ctx.fillRect(0,y,W,2);
+  }
+}
+
+function drawEntity(sx,sy,sz,shade){
+  const bw=sz*0.28, bh=sz*0.72;
+  const hw=sz*0.2;
+  ctx.save();
+  ctx.globalAlpha=Math.min(1,shade*1.1);
+  // glow
+  const g=ctx.createRadialGradient(sx,sy+sz*0.15,0,sx,sy+sz*0.15,sz*0.4);
+  g.addColorStop(0,`rgba(80,0,0,${shade*0.3})`);
+  g.addColorStop(1,'rgba(80,0,0,0)');
+  ctx.fillStyle=g; ctx.fillRect(sx-sz*.4,sy,sz*.8,sz*.5);
+  // body
+  ctx.fillStyle='#030202';
+  ctx.fillRect(sx-bw/2,sy+sz*.15,bw,bh);
+  // head
+  ctx.beginPath();
+  ctx.ellipse(sx,sy+sz*.13,hw*.5,hw*.75,0,0,Math.PI*2);
+  ctx.fill();
+  // eyes
+  const es=Math.max(1.5,sz*.028);
+  ctx.fillStyle=`rgba(200,30,30,${shade})`;
+  ctx.beginPath();
+  ctx.arc(sx-sz*.038,sy+sz*.13,es,0,Math.PI*2);
+  ctx.arc(sx+sz*.038,sy+sz*.13,es,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawNote(sx,sy,sz,shade){
+  const nw=Math.max(8,sz*.2), nh=Math.max(10,sz*.25);
+  ctx.save();
+  ctx.globalAlpha=Math.min(1,shade*1.5);
+  // halo
+  const g=ctx.createRadialGradient(sx,H/2,0,sx,H/2,nw*3);
+  g.addColorStop(0,`rgba(212,168,67,${shade*.35})`);
+  g.addColorStop(1,'rgba(212,168,67,0)');
+  ctx.fillStyle=g; ctx.fillRect(sx-nw*3,H/2-nw*3,nw*6,nw*6);
+  // paper
+  ctx.fillStyle=`rgba(195,168,108,${Math.min(1,shade*1.2)})`;
+  ctx.fillRect(sx-nw/2,H/2-nh/2,nw,nh);
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════
+//  MINIMAP
+// ═══════════════════════════════════════════════
+const MM=document.getElementById('mm');
+const mctx=MM.getContext('2d');
+const MSX=MM.width/MW, MSY=MM.height/MH;
+
+function drawMinimap(){
+  mctx.fillStyle='#050403';
+  mctx.fillRect(0,0,MM.width,MM.height);
+  for(let y=0;y<MH;y++) for(let x=0;x<MW;x++){
+    const c=RAW[y*MW+x];
+    mctx.fillStyle=c===0?'#1c1712':c===3?'#1a3018':c===2?'#3a2818':'#252018';
+    mctx.fillRect(x*MSX,y*MSY,MSX-0.5,MSY-0.5);
+  }
+  notes.forEach(n=>{
+    if(n.collected) return;
+    mctx.fillStyle='#d4a843';
+    mctx.fillRect(n.x*MSX-1,n.y*MSY-1,2.5,2.5);
+  });
+  if(ENT.active){
+    mctx.fillStyle='#8b1212';
+    mctx.beginPath();
+    mctx.arc(ENT.x*MSX,ENT.y*MSY,2.5,0,Math.PI*2);
+    mctx.fill();
+  }
+  mctx.fillStyle='#ffffff';
+  mctx.beginPath();
+  mctx.arc(P.x*MSX,P.y*MSY,2,0,Math.PI*2);
+  mctx.fill();
+  mctx.strokeStyle='#ffffffaa';
+  mctx.lineWidth=1;
+  mctx.beginPath();
+  mctx.moveTo(P.x*MSX,P.y*MSY);
+  mctx.lineTo(P.x*MSX+Math.cos(P.a)*5,P.y*MSY+Math.sin(P.a)*5);
+  mctx.stroke();
+}
+
+// ═══════════════════════════════════════════════
+//  UPDATE
+// ═══════════════════════════════════════════════
+let last=0;
+function loop(ts){
+  if(!gameOn) return;
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-last)/1000,.05);
+  last=ts;
+  update(dt);
+  render();
+  drawMinimap();
+}
+
+function update(dt){
+  if(!alive) return;
+  // ── Turn ──
+  let da=0;
+  if(keys['ArrowLeft']||keys['KeyQ']) da-=2.2*dt;
+  if(keys['ArrowRight']||keys['KeyE']) da+=2.2*dt;
+  da+=mdx*.0028; mdx=0;
+  da+=lookDX*.0028; lookDX=0;
+  P.a+=da;
+
+  // ── Move ──
+  const SPEED=3.2;
+  let fx=0,fy=0;
+  if(keys['KeyW']||keys['ArrowUp']){
+    fx+=Math.cos(P.a)*SPEED*dt;
+    fy+=Math.sin(P.a)*SPEED*dt;
+  }
+  if(keys['KeyS']||keys['ArrowDown']){
+    fx-=Math.cos(P.a)*SPEED*dt;
+    fy-=Math.sin(P.a)*SPEED*dt;
+  }
+  if(keys['KeyA']){
+    fx+=Math.cos(P.a-Math.PI/2)*SPEED*dt;
+    fy+=Math.sin(P.a-Math.PI/2)*SPEED*dt;
+  }
+  if(keys['KeyD']){
+    fx+=Math.cos(P.a+Math.PI/2)*SPEED*dt;
+    fy+=Math.sin(P.a+Math.PI/2)*SPEED*dt;
+  }
+  // Joystick
+  fx+=Math.cos(P.a)*(-joy.ay)*SPEED*dt + Math.cos(P.a+Math.PI/2)*joy.ax*SPEED*dt;
+  fy+=Math.sin(P.a)*(-joy.ay)*SPEED*dt + Math.sin(P.a+Math.PI/2)*joy.ax*SPEED*dt;
+
+  const pad=0.35;
+  if(!solid(P.x+fx,P.y)) P.x+=fx;
+  if(!solid(P.x,P.y+fy)) P.y+=fy;
+
+  // Win check
+  if(mcell(P.x,P.y)===3){
+    if(noteCount>=5) triggerWin();
+    else showMsg('FIND ALL 5 NOTES FIRST...');
+  }
+
+  // ── Notes nearby ──
+  nearIdx=-1;
+  for(let i=0;i<notes.length;i++){
+    if(notes[i].collected) continue;
+    if((notes[i].x-P.x)**2+(notes[i].y-P.y)**2<2.25){nearIdx=i;break;}
+  }
+  const pr=document.getElementById('prompt');
+  if(nearIdx>=0){
+    pr.textContent=isMob?'[ BUTTON ] READ':'[ E ] READ';
+    pr.classList.add('show');
+  } else {
+    pr.classList.remove('show');
+  }
+
+  // ── Entity ──
+  ENT.timer-=dt;
+  if(ENT.timer<=0&&noteCount>0){
+    ENT.timer=Math.max(5,18-noteCount*2.8)+Math.random()*3;
+    spawnEnt();
+  }
+  if(ENT.active){
+    const exd=P.x-ENT.x, eyd=P.y-ENT.y;
+    const ed=Math.sqrt(exd*exd+eyd*eyd);
+    if(ed<0.65){ die(); return; }
+    const spd=(0.018+noteCount*.004)/dt*dt;
+    ENT.x+=(exd/ed)*spd;
+    ENT.y+=(eyd/ed)*spd;
+    const fear=Math.max(0,Math.min(1,1-ed/7));
+    document.getElementById('fear').style.opacity=fear*.88;
+    sanity-=(7-Math.min(ed,7))*2.5*dt;
+    if(ed>18) despawnEnt();
+  }
+
+  // ── Sanity ──
+  sanity-=0.7*dt;
+  sanity=Math.max(0,Math.min(100,sanity));
+  const pct=sanity/100;
+  document.getElementById('sanFill').style.width=(pct*100)+'%';
+  document.getElementById('sanFill').style.background=
+    pct>.5?'#d4a843':pct>.25?'#a05020':'#7a1212';
+  if(sanity<=0) die();
+  // Shake
+  if(sanity<25&&Math.random()<.025){
+    C.style.transform=`translate(${(Math.random()-.5)*5}px,${(Math.random()-.5)*5}px)`;
+    setTimeout(()=>C.style.transform='',80);
+  }
+}
+
+function spawnEnt(){
+  if(ENT.active) return;
+  const a=P.a+Math.PI+(Math.random()-.5)*.9;
+  const d=10+Math.random()*5;
+  let ex=P.x+Math.cos(a)*d, ey=P.y+Math.sin(a)*d;
+  ex=Math.max(1.5,Math.min(MW-1.5,ex));
+  ey=Math.max(1.5,Math.min(MH-1.5,ey));
+  if(solid(ex,ey)) return;
+  ENT.x=ex; ENT.y=ey;
+  ENT.active=true;
+  doFlash('#080000',60);
+}
+function despawnEnt(){
+  ENT.active=false;
+  document.getElementById('fear').style.opacity=0;
+}
+
+// ═══════════════════════════════════════════════
+//  INTERACTIONS
+// ═══════════════════════════════════════════════
+function tryInteract(){
+  if(!gameOn||!alive||nearIdx<0) return;
+  const n=notes[nearIdx];
+  n.collected=true; nearIdx=-1;
+  noteCount++;
+  document.getElementById('nC').textContent=noteCount;
+  sanity=Math.min(100,sanity+12);
+  document.getElementById('prompt').classList.remove('show');
+  gameOn=false;
+  document.getElementById('noteBody').textContent=STORY[n.si].text;
+  document.getElementById('noteScreen').classList.remove('off');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function closeNote(){
+  document.getElementById('noteScreen').classList.add('off');
+  gameOn=true;
+  if(!isMob) document.body.requestPointerLock().catch(()=>{});
+}
+
+let msgT;
+function showMsg(t){
+  const p=document.getElementById('prompt');
+  p.textContent=t; p.classList.add('show');
+  clearTimeout(msgT); msgT=setTimeout(()=>p.classList.remove('show'),2200);
+}
+
+function die(){
+  if(!alive) return;
+  alive=false; gameOn=false;
+  despawnEnt();
+  if(document.pointerLockElement) document.exitPointerLock();
+  doFlash('#400',250);
+  setTimeout(()=>document.getElementById('deathScreen').classList.remove('off'),450);
+}
+function triggerWin(){
+  alive=false; gameOn=false;
+  if(document.pointerLockElement) document.exitPointerLock();
+  doFlash('#fff',180);
+  setTimeout(()=>document.getElementById('winScreen').classList.remove('off'),380);
+}
+let flashT;
+function doFlash(col,ms){
+  const f=document.getElementById('flash');
+  f.style.background=col; f.style.opacity=.85; f.style.transition='opacity .04s';
+  clearTimeout(flashT);
+  flashT=setTimeout(()=>{f.style.opacity=0;f.style.transition='opacity .5s';},ms);
+}
+
+// ═══════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════
+function setupPC(){
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(e.code==='KeyE'&&gameOn) tryInteract();
+  });
+  document.addEventListener('keyup',e=>{ keys[e.code]=false; });
+  document.addEventListener('click',()=>{ if(gameOn) document.body.requestPointerLock().catch(()=>{}); });
+  document.addEventListener('mousemove',e=>{ if(document.pointerLockElement) mdx+=e.movementX; });
+}
+function setupMobile(){
+  document.getElementById('mobUI').style.display='block';
+  document.getElementById('actBtn').style.display='flex';
+  const jz=document.getElementById('jZone');
+  const kn=document.getElementById('jKnob');
+  const lz=document.getElementById('lZone');
+  const MAXR=35;
+  let jID=null,jSX=0,jSY=0, lID=null,lLX=0;
+
+  jz.addEventListener('touchstart',e=>{
+    const t=e.changedTouches[0]; jID=t.identifier;
+    const r=jz.getBoundingClientRect();
+    jSX=r.left+r.width/2; jSY=r.top+r.height/2;
+  },{passive:true});
+  jz.addEventListener('touchmove',e=>{
+    for(const t of e.changedTouches){
+      if(t.identifier!==jID) continue;
+      let dx=t.clientX-jSX, dy=t.clientY-jSY;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d>MAXR){dx*=MAXR/d;dy*=MAXR/d;}
+      joy.ax=dx/MAXR; joy.ay=dy/MAXR;
+      kn.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+    }
+  },{passive:true});
+  jz.addEventListener('touchend',e=>{
+    for(const t of e.changedTouches) if(t.identifier===jID){joy.ax=0;joy.ay=0;kn.style.transform='translate(-50%,-50%)';}
+  },{passive:true});
+
+  lz.addEventListener('touchstart',e=>{
+    const t=e.changedTouches[0]; lID=t.identifier; lLX=t.clientX;
+  },{passive:true});
+  lz.addEventListener('touchmove',e=>{
+    for(const t of e.changedTouches){
+      if(t.identifier!==lID) continue;
+      lookDX+=(t.clientX-lLX)*2.2;
+      lLX=t.clientX;
+    }
+  },{passive:true});
+  lz.addEventListener('touchend',e=>{
+    for(const t of e.changedTouches) if(t.identifier===lID) lID=null;
+  },{passive:true});
+}
+
+// ═══════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════
+function startGame(){
+  document.getElementById('titleScreen').classList.add('off');
+  notes=STORY.map((s,i)=>({x:s.x,y:s.y,si:i,collected:false}));
+  P.x=2.5; P.y=2.5; P.a=0;
+  sanity=100; noteCount=0; alive=true;
+  ENT.active=false; ENT.timer=22; ENT.x=8; ENT.y=19;
+  if(isMob) setupMobile();
+  else{ setupPC(); document.body.requestPointerLock().catch(()=>{}); }
+  gameOn=true;
+  last=performance.now();
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
